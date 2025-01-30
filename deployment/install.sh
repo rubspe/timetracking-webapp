@@ -2,10 +2,10 @@
 
 set -e
 
-echo "🚀 Installerer Time-Tracking Web App på Debian/Ubuntu..."
+echo "🚀 Starter installasjon av Time-Tracking Web App på Debian/Ubuntu..."
 
 # Oppdater systemet og installer nødvendige pakker
-echo "🔄 Sjekker og installerer nødvendige pakker..."
+echo "🔄 Installerer nødvendige pakker og setter opp webserver..."
 REQUIRED_PKGS=("nodejs" "npm" "postgresql" "postgresql-contrib" "nginx" "certbot" "python3-certbot-nginx" "git" "curl")
 for pkg in "${REQUIRED_PKGS[@]}"; do
     if dpkg -l | grep -qw "$pkg"; then
@@ -38,9 +38,14 @@ else
     sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE timetracking TO admin;"
 fi
 
+# Opprett webservermappe og sett rettigheter
+echo "📂 Konfigurerer webserver..."
+sudo mkdir -p /var/www/timetracking
+sudo chown -R $USER:$USER /var/www/timetracking
+
 # Klon prosjektet hvis det ikke finnes
 echo "📦 Sjekker om prosjektet er klonet..."
-if [ -d "/var/www/timetracking" ]; then
+if [ -d "/var/www/timetracking/.git" ]; then
     echo "✅ Prosjektet er allerede klonet."
 else
     echo "📥 Kloner prosjektet..."
@@ -105,4 +110,28 @@ EOT
     sudo systemctl start timetracking.service
 fi
 
-echo "✅ Installasjon fullført! Tilgjengelig på serverens IP-adresse.🚀"
+# Sett opp Nginx-konfigurasjon
+echo "🌍 Konfigurerer Nginx..."
+if [ -f "/etc/nginx/sites-available/timetracking" ]; then
+    echo "✅ Nginx-konfigurasjon finnes allerede."
+else
+    sudo tee /etc/nginx/sites-available/timetracking <<EOT
+server {
+    listen 80;
+    server_name yourdomain.com;
+
+    location / {
+        proxy_pass http://localhost:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+EOT
+    sudo ln -s /etc/nginx/sites-available/timetracking /etc/nginx/sites-enabled/
+    sudo nginx -t
+    sudo systemctl restart nginx
+fi
+
+echo "✅ Installasjon fullført! Tilgjengelig på serverens IP-adresse eller domenenavn.🚀"
