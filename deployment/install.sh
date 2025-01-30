@@ -62,8 +62,38 @@ else
     echo "📥 Kloner prosjektet..."
     git clone https://github.com/rubspe/timetracking-webapp.git "$INSTALL_DIR"
 fi
-
 cd "$INSTALL_DIR"
+
+# Sjekk om package.json eksisterer, hvis ikke opprett det
+echo "📦 Sjekker om package.json finnes..."
+if [ ! -f "package.json" ]; then
+    echo "⚠️ package.json mangler. Oppretter..."
+    cat <<EOT > package.json
+{
+  "name": "timetracking-app",
+  "version": "1.0.0",
+  "description": "Full-stack time-tracking web application",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "body-parser": "^1.20.2",
+    "dotenv": "^16.0.3",
+    "pg": "^8.10.0",
+    "bcrypt": "^5.1.0",
+    "jsonwebtoken": "^9.0.0",
+    "nodemailer": "^6.9.1"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.22"
+  }
+}
+EOT
+fi
 
 # Installer avhengigheter hvis ikke installert
 if [ -d "node_modules" ]; then
@@ -94,33 +124,6 @@ if sudo -u postgres psql timetracking -c "SELECT * FROM users LIMIT 1;" &> /dev/
 else
     echo "📂 Kjører database-migrasjoner..."
     node migrate.js
-fi
-
-# Sett opp systemd-tjeneste hvis ikke allerede satt opp
-if [ "$EUID" -eq 0 ]; then
-    if [ -f "/etc/systemd/system/timetracking.service" ]; then
-        echo "✅ Systemd-tjenesten er allerede konfigurert."
-    else
-        echo "⚙️ Oppretter systemd-tjeneste..."
-        cat <<EOT | sudo tee /etc/systemd/system/timetracking.service
-[Unit]
-Description=Time-Tracking Web App
-After=network.target
-
-[Service]
-User=www-data
-WorkingDirectory=$INSTALL_DIR
-ExecStart=/usr/bin/node $INSTALL_DIR/server.js
-Restart=always
-Environment=NODE_ENV=production
-
-[Install]
-WantedBy=multi-user.target
-EOT
-        sudo systemctl daemon-reload
-        sudo systemctl enable timetracking.service
-        sudo systemctl start timetracking.service
-    fi
 fi
 
 echo "✅ Installasjon fullført! Prosjektet er plassert i $INSTALL_DIR 🚀"
